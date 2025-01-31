@@ -273,6 +273,7 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
         write_packet(DECODE_MSG, new_frame->data, frame_size);
+
         return 0;
     } else {
         STATUS_LED_RED();

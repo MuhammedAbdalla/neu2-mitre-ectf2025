@@ -14,6 +14,10 @@ import argparse
 import struct
 import json
 
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+import base64
+
 
 class Encoder:
     def __init__(self, secrets: bytes):
@@ -28,10 +32,11 @@ class Encoder:
 
         # Load the json of the secrets file
         secrets = json.loads(secrets)
-
+        
         # Load the example secrets for use in Encoder.encode
         # This will be "EXAMPLE" in the reference design"
         self.some_secrets = secrets["some_secrets"]
+        self.key
 
     def encode(self, channel: int, frame: bytes, timestamp: int) -> bytes:
         """The frame encoder function
@@ -53,6 +58,16 @@ class Encoder:
         """
         # TODO: encode the satellite frames so that they meet functional and
         #  security requirements
+
+        # encrypt channel number
+        # encrypt timestamp
+        # encrypt TV Frame
+        # HMAC
+
+        '''
+            struct.pack
+        
+        '''
 
         return struct.pack("<IQ", channel, timestamp) + frame
 

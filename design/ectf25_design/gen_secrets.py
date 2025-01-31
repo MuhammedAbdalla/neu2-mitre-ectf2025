@@ -38,6 +38,7 @@ def gen_secrets(channels: list[int]) -> bytes:
     secrets = {
         "channels": channels,
         "some_secrets": "EXAMPLE",
+        "decrypt_key":"neu2_key@@"
     }
 
     # NOTE: if you choose to use JSON for your file type, you will not be able to

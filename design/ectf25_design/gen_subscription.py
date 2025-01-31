@@ -40,9 +40,17 @@ def gen_subscription(
     # You can use secrets generated using `gen_secrets` here like:
     # secrets["some_secrets"]
     # Which would return "EXAMPLE" in the reference design.
-    # Please note that the secrets are READ ONLY at this sage!
+    # Please note that the secrets are READ ONLY at this stage!
 
     # Pack the subscription. This will be sent to the decoder with ectf25.tv.subscribe
+
+    # encrypt the channel
+    # encode the device ID
+    # encrypt the start time stamp
+    # encrypt the end time stamp
+    # HMAC
+    
+
     return struct.pack("<IQQI", device_id, start, end, channel)
 
 
