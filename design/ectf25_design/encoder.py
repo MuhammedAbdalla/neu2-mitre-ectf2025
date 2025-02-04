@@ -16,6 +16,7 @@ import json
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
+from Crypto.Hash import HMAC, SHA256
 import base64
 
 
@@ -35,8 +36,12 @@ class Encoder:
         
         # Load the example secrets for use in Encoder.encode
         # This will be "EXAMPLE" in the reference design"
-        self.some_secrets = secrets["some_secrets"]
-        self.key
+        # self.some_secrets = secrets["some_secrets"]
+        self.v = secrets["video"]
+
+        # create a CBC Cipher object
+        self.cipher = AES.new(self.v["key"], AES.MODE_CBC, self.v["iv"])
+
 
     def encode(self, channel: int, frame: bytes, timestamp: int) -> bytes:
         """The frame encoder function
@@ -68,8 +73,18 @@ class Encoder:
             struct.pack
         
         '''
+        
+        # 76 Bytes: |4|8|64|
+        plain_text_frame = struct.pack("<IQ64s", channel, timestamp, frame)
 
-        return struct.pack("<IQ", channel, timestamp) + frame
+        # 76 Bytes
+        cipher_text_frame = self.cipher.encrypt(pad(plain_text_frame, AES.block_size()))
+
+        # 64 bytes
+        hmac = HMAC.new(self.v["auth"], plain_text_frame, SHA256)
+
+        # 140 bytes
+        return struct.pack("<76s64s", cipher_text_frame, hmac)
 
 
 def main():

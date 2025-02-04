@@ -13,9 +13,13 @@ Copyright: Copyright (c) 2025 The MITRE Corporation
 import argparse
 import json
 from pathlib import Path
-
 from loguru import logger
 
+# for pseudo-random session key generation
+# and key derivation for Video and Subscription session keys
+from Crypto.Random import get_random_bytes
+from Crypto.Protocol.KDF import HKDF
+from Crypto.Hash import SHA256
 
 def gen_secrets(channels: list[int]) -> bytes:
     """Generate the contents secrets file
@@ -35,11 +39,34 @@ def gen_secrets(channels: list[int]) -> bytes:
     # Create the secrets object
     # You can change this to generate any secret material
     # The secrets file will never be shared with attackers
+
     secrets = {
         "channels": channels,
-        "some_secrets": "EXAMPLE",
-        "decrypt_key":"neu2_key@@"
+        "video":{
+            "key":None,
+            "iv":None,
+            "auth":None
+        },
+
+        "subscription":{
+            "key":None,
+            "iv":None,
+            "auth":None
+        }
     }
+
+    for field in ["video", "subscription"]:
+        # generate a 256-bit/32 byte (shared) key
+        key = get_random_bytes(32)
+        secrets[field]["key"] = key
+
+        # generate 16 byte initialization vector for AES-256-CBC
+        iv = HKDF(key, 16, salt=None, hashmod=SHA256)
+        secrets[field]["iv"] = iv
+
+        # generate 256 bit/32 byte HMAC Auth Key derived from key & iv
+        auth = HKDF(key, 32, salt=iv, hashmod=SHA256)
+        secrets[field]["auth"] = auth
 
     # NOTE: if you choose to use JSON for your file type, you will not be able to
     # store binary data, and must either use a different file type or encode the
