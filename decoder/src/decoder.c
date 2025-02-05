@@ -272,6 +272,8 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
         print_debug("Subscription Valid\n");
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
+
+       // we will need to utilize wolfSSL to AES decrypt & hash the elements
         write_packet(DECODE_MSG, new_frame->data, frame_size);
 
         return 0;

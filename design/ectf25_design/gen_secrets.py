@@ -20,6 +20,7 @@ from loguru import logger
 from Crypto.Random import get_random_bytes
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Hash import SHA256
+import base64
 
 def gen_secrets(channels: list[int]) -> bytes:
     """Generate the contents secrets file
@@ -47,26 +48,26 @@ def gen_secrets(channels: list[int]) -> bytes:
             "iv":None,
             "auth":None
         },
-
         "subscription":{
             "key":None,
             "iv":None,
             "auth":None
-        }
+        },
+        "team": "NEU2"
     }
 
     for field in ["video", "subscription"]:
         # generate a 256-bit/32 byte (shared) key
         key = get_random_bytes(32)
-        secrets[field]["key"] = key
+        secrets[field]["key"] = base64.b64encode(key).decode('utf-8')
 
         # generate 16 byte initialization vector for AES-256-CBC
         iv = HKDF(key, 16, salt=None, hashmod=SHA256)
-        secrets[field]["iv"] = iv
+        secrets[field]["iv"] = base64.b64encode(iv).decode('utf-8')
 
         # generate 256 bit/32 byte HMAC Auth Key derived from key & iv
         auth = HKDF(key, 32, salt=iv, hashmod=SHA256)
-        secrets[field]["auth"] = auth
+        secrets[field]["auth"] = base64.b64encode(auth).decode('utf-8')
 
     # NOTE: if you choose to use JSON for your file type, you will not be able to
     # store binary data, and must either use a different file type or encode the

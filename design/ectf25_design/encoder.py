@@ -38,9 +38,11 @@ class Encoder:
         # This will be "EXAMPLE" in the reference design"
         # self.some_secrets = secrets["some_secrets"]
         self.v = secrets["video"]
+        KVe = base64.b64decode(self.v["key"].encode('utf-8'))
+        KVi = base64.b64decode(self.v["iv"].encode('utf-8'))
 
         # create a CBC Cipher object
-        self.cipher = AES.new(self.v["key"], AES.MODE_CBC, self.v["iv"])
+        self.cipher = AES.new(KVe, AES.MODE_CBC, KVi)
 
 
     def encode(self, channel: int, frame: bytes, timestamp: int) -> bytes:
@@ -78,13 +80,14 @@ class Encoder:
         plain_text_frame = struct.pack("<IQ64s", channel, timestamp, frame)
 
         # 76 Bytes
-        cipher_text_frame = self.cipher.encrypt(pad(plain_text_frame, AES.block_size()))
+        cipher_text_frame = self.cipher.encrypt(pad(plain_text_frame, AES.block_size))
 
         # 64 bytes
-        hmac = HMAC.new(self.v["auth"], plain_text_frame, SHA256)
+        KVa = base64.b64decode(self.v["auth"].encode('utf-8'))
+        hmac = HMAC.new(KVa, plain_text_frame, SHA256)
 
         # 140 bytes
-        return struct.pack("<76s64s", cipher_text_frame, hmac)
+        return struct.pack("<76s64s", cipher_text_frame, hmac.digest())
 
 
 def main():
