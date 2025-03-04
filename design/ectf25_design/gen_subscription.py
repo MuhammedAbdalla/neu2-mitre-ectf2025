@@ -51,7 +51,7 @@ def gen_subscription(
     # HMAC
     
 
-    return struct.pack("<IQQI", device_id, start, end, channel)
+    return struct.pack("<IQQI", channel, device_id, start, end)
 
 
 def parse_args():

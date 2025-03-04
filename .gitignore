@@ -289,6 +289,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.vectf
 env/
 venv/
 ENV/
@@ -335,6 +336,6 @@ wolfssl/
 
 !device/lib
 msdk/
-*secrets
-*subscriptions
+secrets/*
+subscriptions/
 sandbox/

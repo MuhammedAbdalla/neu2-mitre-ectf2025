@@ -52,6 +52,7 @@
 #define MAX_CHANNEL_COUNT 8
 #define EMERGENCY_CHANNEL 0
 #define FRAME_SIZE 64
+#define HMAC_SIZE 64
 #define DEFAULT_CHANNEL_TIMESTAMP 0xFFFFFFFFFFFFFFFF
 // This is a canary value so we can confirm whether this decoder has booted before
 #define FLASH_FIRST_BOOT 0xDEADBEEF
@@ -72,17 +73,25 @@
 // for more information on what struct padding does, see:
 // https://www.gnu.org/software/c-intro-and-ref/manual/html_node/Structure-Layout.html
 typedef struct {
+    channel_id_t channel;           // 4 bytes
+    timestamp_t timestamp;          // 8 bytes
+    uint8_t data[FRAME_SIZE];       // 64 bytes
+    uint8_t hmac[HMAC_SIZE];        // 64 bytes
+} frame_packet_t;                   // 140 bytes
+
+typedef struct {
     channel_id_t channel;
     timestamp_t timestamp;
     uint8_t data[FRAME_SIZE];
-} frame_packet_t;
+} encrypted_frame_packet_t;
 
 typedef struct {
-    decoder_id_t decoder_id;
-    timestamp_t start_timestamp;
-    timestamp_t end_timestamp;
-    channel_id_t channel;
-} subscription_update_packet_t;
+    channel_id_t channel;           // 4 bytes
+    decoder_id_t decoder_id;        // 4 bytes 
+    timestamp_t start_timestamp;    // 8 bytes
+    timestamp_t end_timestamp;      // 8 bytes
+    uint8_t hmac[HMAC_SIZE];        // 64 bytes
+} subscription_update_packet_t;     // 88 bytes
 
 typedef struct {
     channel_id_t channel;
@@ -215,7 +224,8 @@ int list_channels() {
 */
 int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update) {
     int i;
-
+    
+    // param is NOW decrypted subscription packet
     if (update->channel == EMERGENCY_CHANNEL) {
         STATUS_LED_RED();
         print_error("Failed to update subscription - cannot subscribe to emergency channel\n");
@@ -247,6 +257,19 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
     return 0;
 }
 
+/**
+ * @brief apply cryptographic decryption on the incoming encrypted packet
+ * 
+ * @param cipher_text 
+ * @param plain_text 
+ * @return int 
+ */
+int decryptor(unsigned char* cipher_text, unsigned char* plain_text) {
+    // decrypt_sym(cipher_text, sizeof(cipher_text), )
+    return 0;
+}
+
+
 /** @brief Processes a packet containing frame data.
  *
  *  @param pkt_len A pointer to the incoming packet.
@@ -259,21 +282,47 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
     uint16_t frame_size;
     channel_id_t channel;
 
+    // new_frame is NOW encrypted subscription packet
+    // 1. remove hmac 2. wolfssl decrypt channel, ts, data 3. hash (channel, ts, data) & compare 
+
+    encrypted_frame_packet_t encrypted_packet = {new_frame->channel, new_frame->timestamp, new_frame->data};
+    decryptor(encrypted_packet);
+    // ensure encrypted size is 76 bytes
+    if (sizeof(encrypted_packet) != 76) {
+        STATUS_LED_RED();
+        sprintf(
+            output_buf,
+            "incorrect encrypted packet format.  %u\n", channel);
+        print_error(output_buf);
+        return -1;
+    }
+
+    // now decrypt all together
+    // first read as unsigned bytes (0-255 in value)
+    unsigned char* cipher_frame = (unsigned char*)new_frame;
+
+
     // Frame size is the size of the packet minus the size of non-frame elements
-    frame_size = pkt_len - (sizeof(new_frame->channel) + sizeof(new_frame->timestamp));
+    frame_size = pkt_len - (
+        sizeof(new_frame->channel) + 
+        sizeof(new_frame->timestamp) +
+        sizeof(new_frame->hmac)
+    );
     channel = new_frame->channel;
 
     // The reference design doesn't use the timestamp, but you may want to in your design
-    // timestamp_t timestamp = new_frame->timestamp;
+    timestamp_t timestamp = new_frame->timestamp;
 
     // Check that we are subscribed to the channel...
     print_debug("Checking subscription\n");
-    if (is_subscribed(channel)) {
+    uint8_t isSubbed = is_subscribed(channel);
+    if (1) {
         print_debug("Subscription Valid\n");
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
 
        // we will need to utilize wolfSSL to AES decrypt & hash the elements
+       print_debug(new_frame->data);
         write_packet(DECODE_MSG, new_frame->data, frame_size);
 
         return 0;
@@ -330,6 +379,11 @@ void init() {
     }
 }
 
+int read_secrets(unsigned char* secrets){
+    FILE *secrets_file;
+    // make a python file read & export the keys to an LF delimited file?
+    return 0;
+}
 /* Code between this #ifdef and the subsequent #endif will
 *  be ignored by the compiler if CRYPTO_EXAMPLE is not set in
 *  the projectk.mk file. */

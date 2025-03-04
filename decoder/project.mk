@@ -5,7 +5,7 @@
 # For instructions on how to use this system, see
 # https://analog-devices-msdk.github.io/msdk/USERGUIDE/#build-system
 
-# MXC_OPTIMIZE_CFLAGS = -Og
+MXC_OPTIMIZE_CFLAGS = -Og
 # ^ For example, you can uncomment this line to 
 # optimize the project for debugging
 
@@ -19,12 +19,11 @@ WOLFSSL_USE_OPTIONS_H=1
 override BOARD=FTHR_RevA
 MFLOAT_ABI=soft
 
-IPATH+=wolfssl/
 IPATH+=../deployment
 IPATH+=inc/
 IPATH+=/secrets
 VPATH+=src/
-
+PROJ_CFLAGS+=-g
 # ****************** eCTF Bootloader *******************
 # DO NOT REMOVE
 LINKERFILE=firmware.ld
