@@ -35,6 +35,7 @@ ENV MAXIM_PATH=/root/msdk-2024_02
 
 WORKDIR /decoder
 
+RUN python3 embed_secrets.py '/secrets/secrets.json' 'inc/secrets.h'
 ENTRYPOINT ["bash", "-c", "make release DECODER_ID=${DECODER_ID} && cp build/max78000.elf build/max78000.bin /out"]
 
 # Sample run command:

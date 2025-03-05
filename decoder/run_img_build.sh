@@ -11,6 +11,8 @@ docker run \
     --rm \
     -v "$(realpath ./build_out):/out" \
     -v "$(realpath ./):/decoder" \
-    -v "$(realpath ../secrets):/secrets" \
+    -v "$(realpath ../secrets):/global.secrets:ro" \
     -e DECODER_ID="0xdeadbeef" \
     decoder
+
+

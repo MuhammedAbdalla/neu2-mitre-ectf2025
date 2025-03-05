@@ -42,7 +42,7 @@ class Encoder:
         KVi = base64.b64decode(self.v["iv"].encode('utf-8'))
 
         # create a CBC Cipher object
-        self.cipher = AES.new(KVe, AES.MODE_CBC, KVi)
+        self.cipher = AES.new(KVe, AES.MODE_ECB)
 
 
     def encode(self, channel: int, frame: bytes, timestamp: int) -> bytes:

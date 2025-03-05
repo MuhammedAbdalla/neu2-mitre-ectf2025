@@ -336,6 +336,7 @@ wolfssl/
 
 !device/lib
 msdk/
+secrets.h
 secrets/*
 subscriptions/
 sandbox/
