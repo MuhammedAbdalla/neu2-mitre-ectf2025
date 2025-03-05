@@ -23,6 +23,7 @@
 #include "host_messaging.h"
 
 #include "simple_uart.h"
+#include "secrets.h"
 
 /* Code between this #ifdef and the subsequent #endif will
 *  be ignored by the compiler if CRYPTO_EXAMPLE is not set in
@@ -53,6 +54,8 @@
 #define EMERGENCY_CHANNEL 0
 #define FRAME_SIZE 64
 #define HMAC_SIZE 64
+#define ENCRYPTED_VIDEO_SIZE 76
+#define ENCRYPTED_SUBSCRIPTION_SIZE 24
 #define DEFAULT_CHANNEL_TIMESTAMP 0xFFFFFFFFFFFFFFFF
 // This is a canary value so we can confirm whether this decoder has booted before
 #define FLASH_FIRST_BOOT 0xDEADBEEF
@@ -76,13 +79,13 @@ typedef struct {
     channel_id_t channel;           // 4 bytes
     timestamp_t timestamp;          // 8 bytes
     uint8_t data[FRAME_SIZE];       // 64 bytes
-    uint8_t hmac[HMAC_SIZE];        // 64 bytes
-} frame_packet_t;                   // 140 bytes
+} frame_packet_t;                   // 76
 
 typedef struct {
-    channel_id_t channel;
-    timestamp_t timestamp;
-    uint8_t data[FRAME_SIZE];
+    channel_id_t channel;           // 4 bytes
+    timestamp_t timestamp;          // 8 bytes
+    uint8_t data[FRAME_SIZE];       // 64 bytes
+    uint8_t hmac[HMAC_SIZE];        // 64 bytes
 } encrypted_frame_packet_t;
 
 typedef struct {
@@ -90,8 +93,15 @@ typedef struct {
     decoder_id_t decoder_id;        // 4 bytes 
     timestamp_t start_timestamp;    // 8 bytes
     timestamp_t end_timestamp;      // 8 bytes
-    uint8_t hmac[HMAC_SIZE];        // 64 bytes
-} subscription_update_packet_t;     // 88 bytes
+} subscription_update_packet_t;     // 24 bytes
+
+typedef struct {
+    channel_id_t channel;                   // 4 bytes
+    decoder_id_t decoder_id;                // 4 bytes 
+    timestamp_t start_timestamp;            // 8 bytes
+    timestamp_t end_timestamp;              // 8 bytes
+    uint8_t hmac[HMAC_SIZE];                // 64 bytes
+} encrypted_subscription_update_packet_t;   // 88 bytes
 
 typedef struct {
     channel_id_t channel;
@@ -277,7 +287,7 @@ int decryptor(unsigned char* cipher_text, unsigned char* plain_text) {
  *
  *  @return 0 if successful.  -1 if data is from unsubscribed channel.
 */
-int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
+int decode(pkt_len_t pkt_len, encrypted_frame_packet_t *new_frame) {
     char output_buf[128] = {0};
     uint16_t frame_size;
     channel_id_t channel;
@@ -285,10 +295,10 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
     // new_frame is NOW encrypted subscription packet
     // 1. remove hmac 2. wolfssl decrypt channel, ts, data 3. hash (channel, ts, data) & compare 
 
-    encrypted_frame_packet_t encrypted_packet = {new_frame->channel, new_frame->timestamp, new_frame->data};
-    decryptor(encrypted_packet);
+    frame_packet_t encrypted_frame = {new_frame->channel, new_frame->timestamp, new_frame->data};
+    decryptor(encrypted_frame);
     // ensure encrypted size is 76 bytes
-    if (sizeof(encrypted_packet) != 76) {
+    if (sizeof(encrypted_frame) != ENCRYPTED_VIDEO_SIZE) {
         STATUS_LED_RED();
         sprintf(
             output_buf,
@@ -299,31 +309,41 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) {
 
     // now decrypt all together
     // first read as unsigned bytes (0-255 in value)
-    unsigned char* cipher_frame = (unsigned char*)new_frame;
+    uint8_t encrypted_bytes[sizeof(encrypted_frame)];
+    uint8_t decrypted_bytes[sizeof(encrypted_frame)];
+
+    // Copy the struct into the byte array
+    memcpy(encrypted_bytes, &encrypted_frame, sizeof(encrypted_frame));
+
+    // symmetric decryption using AES-ECB mode
+    decrypt_sym(encrypted_bytes, ENCRYPTED_VIDEO_SIZE, secrets[VIDEO_KEY], &decrypted_bytes);
+    
+    // then Hash here, we need to implement SHA256
+    // cast the bytes into the frame
+    frame_packet_t decrypted_frame = (frame_packet_t*)(decrypted_bytes);
 
 
     // Frame size is the size of the packet minus the size of non-frame elements
-    frame_size = pkt_len - (
-        sizeof(new_frame->channel) + 
-        sizeof(new_frame->timestamp) +
-        sizeof(new_frame->hmac)
+    uint8_t frame_size = pkt_len - (
+        sizeof(decrypted_frame->channel) + 
+        sizeof(decrypted_frame->timestamp)
     );
-    channel = new_frame->channel;
+    channel = decrypted_frame->channel;
 
     // The reference design doesn't use the timestamp, but you may want to in your design
-    timestamp_t timestamp = new_frame->timestamp;
+    timestamp_t timestamp = decrypted_frame->timestamp;
 
     // Check that we are subscribed to the channel...
     print_debug("Checking subscription\n");
-    uint8_t isSubbed = is_subscribed(channel);
+    uint8_t isSubbed = is_subscribed(decrypted_frame);
     if (1) {
         print_debug("Subscription Valid\n");
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
 
        // we will need to utilize wolfSSL to AES decrypt & hash the elements
-       print_debug(new_frame->data);
-        write_packet(DECODE_MSG, new_frame->data, frame_size);
+       print_debug(decrypted_frame->data);
+        write_packet(DECODE_MSG, decrypted_frame->data, frame_size);
 
         return 0;
     } else {
@@ -475,13 +495,13 @@ int main(void) {
         // Handle decode command
         case DECODE_MSG:
             STATUS_LED_PURPLE();
-            decode(pkt_len, (frame_packet_t *)uart_buf);
+            decode(pkt_len, (encrypted_frame_packet_t *)uart_buf);
             break;
 
         // Handle subscribe command
         case SUBSCRIBE_MSG:
             STATUS_LED_YELLOW();
-            update_subscription(pkt_len, (subscription_update_packet_t *)uart_buf);
+            update_subscription(pkt_len, (encrypted_subscription_update_packet_t *)uart_buf);
             break;
 
         // Handle bad command
