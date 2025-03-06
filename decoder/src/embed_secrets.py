@@ -1,6 +1,7 @@
 import json
 import base64
 import sys
+import os
 
 def decode_string_bytes(input: str):
     imm = base64.b64decode(input.encode('utf-8'))
@@ -36,13 +37,22 @@ def generate_header(input_file, header_file):
 
     print(f"Header file '{header_file}' created successfully!")
 
-# Define input and output file names
-# docker container compile
-# input_file = sys.argv[1]
-# header_file = input_file = sys.argv[2]
+if __name__ == "__main__":
+    # set working directory to the script
+    os.chdir(os.path.dirname(os.path.abspath(sys.argv[0])))
+    print("working in", os.getcwd())
+    # Define input and output file names
+    # docker container compile
+    value = os.getenv('COMPILETIME')
 
-input_file = 'secrets.json'  # The text file you want to embed
-header_file = '../inc/secrets.h'  # The generated C header file
+    if value is not None and value == 'DOCKER':
+        # i will be in container /decoder
+        input_file = "/global.secrets"
+        header_file = "../inc/secrets.h"
+    else:
+        # i will be project top level
+        input_file = '../../secrets/global.secrets'  # The text file you want to embed
+        header_file = '../inc/secrets.h'  # The generated C header file
 
-# Generate the header file
-generate_header(input_file, header_file)
+    # Generate the header file
+    generate_header(input_file, header_file)

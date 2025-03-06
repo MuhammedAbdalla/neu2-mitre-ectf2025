@@ -79,14 +79,14 @@ typedef struct {
     channel_id_t channel;           // 4 bytes
     timestamp_t timestamp;          // 8 bytes
     uint8_t data[FRAME_SIZE];       // 64 bytes
-} frame_packet_t;                   // 76
+} frame_packet_t;                   // 76 bytes
 
 typedef struct {
     channel_id_t channel;           // 4 bytes
     timestamp_t timestamp;          // 8 bytes
     uint8_t data[FRAME_SIZE];       // 64 bytes
     uint8_t hmac[HMAC_SIZE];        // 64 bytes
-} encrypted_frame_packet_t;
+} encrypted_frame_packet_t;         // 140 bytes
 
 typedef struct {
     channel_id_t channel;           // 4 bytes
@@ -274,11 +274,6 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
  * @param plain_text 
  * @return int 
  */
-int decryptor(unsigned char* cipher_text, unsigned char* plain_text) {
-    // decrypt_sym(cipher_text, sizeof(cipher_text), )
-    return 0;
-}
-
 
 /** @brief Processes a packet containing frame data.
  *
@@ -296,7 +291,7 @@ int decode(pkt_len_t pkt_len, encrypted_frame_packet_t *new_frame) {
     // 1. remove hmac 2. wolfssl decrypt channel, ts, data 3. hash (channel, ts, data) & compare 
 
     frame_packet_t encrypted_frame = {new_frame->channel, new_frame->timestamp, new_frame->data};
-    decryptor(encrypted_frame);
+
     // ensure encrypted size is 76 bytes
     if (sizeof(encrypted_frame) != ENCRYPTED_VIDEO_SIZE) {
         STATUS_LED_RED();
@@ -316,15 +311,15 @@ int decode(pkt_len_t pkt_len, encrypted_frame_packet_t *new_frame) {
     memcpy(encrypted_bytes, &encrypted_frame, sizeof(encrypted_frame));
 
     // symmetric decryption using AES-ECB mode
-    decrypt_sym(encrypted_bytes, ENCRYPTED_VIDEO_SIZE, secrets[VIDEO_KEY], &decrypted_bytes);
+    decrypt_sym(encrypted_bytes, ENCRYPTED_VIDEO_SIZE, (uint8_t*)(secrets[VIDEO_KEY]), decrypted_bytes);
     
     // then Hash here, we need to implement SHA256
     // cast the bytes into the frame
-    frame_packet_t decrypted_frame = (frame_packet_t*)(decrypted_bytes);
+    frame_packet_t *decrypted_frame = (frame_packet_t*)(decrypted_bytes);
 
 
     // Frame size is the size of the packet minus the size of non-frame elements
-    uint8_t frame_size = pkt_len - (
+    frame_size = pkt_len - (
         sizeof(decrypted_frame->channel) + 
         sizeof(decrypted_frame->timestamp)
     );
@@ -335,7 +330,7 @@ int decode(pkt_len_t pkt_len, encrypted_frame_packet_t *new_frame) {
 
     // Check that we are subscribed to the channel...
     print_debug("Checking subscription\n");
-    uint8_t isSubbed = is_subscribed(decrypted_frame);
+    // uint8_t isSubbed = is_subscribed(decrypted_frame);
     if (1) {
         print_debug("Subscription Valid\n");
         /* The reference design doesn't need any extra work to decode, but your design likely will.
@@ -399,11 +394,6 @@ void init() {
     }
 }
 
-int read_secrets(unsigned char* secrets){
-    FILE *secrets_file;
-    // make a python file read & export the keys to an LF delimited file?
-    return 0;
-}
 /* Code between this #ifdef and the subsequent #endif will
 *  be ignored by the compiler if CRYPTO_EXAMPLE is not set in
 *  the projectk.mk file. */
@@ -501,7 +491,7 @@ int main(void) {
         // Handle subscribe command
         case SUBSCRIBE_MSG:
             STATUS_LED_YELLOW();
-            update_subscription(pkt_len, (encrypted_subscription_update_packet_t *)uart_buf);
+            update_subscription(pkt_len, (subscription_update_packet_t *)uart_buf);
             break;
 
         // Handle bad command
