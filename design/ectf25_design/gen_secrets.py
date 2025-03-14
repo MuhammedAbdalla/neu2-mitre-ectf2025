@@ -13,72 +13,46 @@ Copyright: Copyright (c) 2025 The MITRE Corporation
 import argparse
 import json
 from pathlib import Path
+
 from loguru import logger
 
-# for pseudo-random session key generation
-# and key derivation for Video and Subscription session keys
-from Crypto.Random import get_random_bytes
-from Crypto.Protocol.KDF import HKDF
-from Crypto.Hash import SHA256
-import base64
 
 def gen_secrets(channels: list[int]) -> bytes:
     """Generate the contents secrets file
 
-    This will be passed to the Encoder, ectf25_design.gen_subscription, and the build
-    process of the decoder
+    This function generates a JSON-encoded secrets file containing a master key, master salt,
+    and a list of valid channels. The secrets are used by the Encoder, gen_subscription, and
+    the Decoder build process for cryptographic operations.
 
-    :param channels: List of channel numbers that will be valid in this deployment.
-        Channel 0 is the emergency broadcast, which will always be valid and will
-        NOT be included in this list
+    Args:
+        channels (list[int]): List of channel numbers that will be valid in this deployment.
+            Channel 0 is the emergency broadcast, which will always be valid and is NOT included
+            in this list.
 
-    :returns: Contents of the secrets file
+    Returns:
+        bytes: JSON-encoded contents of the secrets file.
     """
-    # TODO: Update this function to generate any system-wide secrets needed by
-    #   your design
-
+    master_key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+    
+    master_salt = "0001020304050607080910111213"
+    
     # Create the secrets object
-    # You can change this to generate any secret material
-    # The secrets file will never be shared with attackers
-
     secrets = {
         "channels": channels,
-        "video":{
-            "key":None,
-            "iv":None,
-            "auth":None
-        },
-        "subscription":{
-            "key":None,
-            "iv":None,
-            "auth":None
-        },
-        "team": "NEU2"
+        "master_key": master_key,
+        "master_salt": master_salt,
+        # Keep the old key for backward compatibility
+        "aes_key": master_key 
     }
-
-    for field in ["video", "subscription"]:
-        # generate a 256-bit/32 byte (shared) key
-        key = get_random_bytes(32)
-        secrets[field]["key"] = base64.b64encode(key).decode('utf-8')
-
-        # generate 16 byte initialization vector for AES-256-CBC
-        iv = HKDF(key, 16, salt=None, hashmod=SHA256)
-        secrets[field]["iv"] = base64.b64encode(iv).decode('utf-8')
-
-        # generate 256 bit/32 byte HMAC Auth Key derived from key & iv
-        auth = HKDF(key, 32, salt=iv, hashmod=SHA256)
-        secrets[field]["auth"] = base64.b64encode(auth).decode('utf-8')
-
-    # NOTE: if you choose to use JSON for your file type, you will not be able to
-    # store binary data, and must either use a different file type or encode the
-    # binary data to hex, base64, or another type of ASCII-only encoding
+    
+    # Encode the secrets as JSON and return as bytes
     return json.dumps(secrets).encode()
 
 
 def parse_args():
     """Define and parse the command line arguments
 
-    NOTE: Your design must not change this function
+    NOTE: Your design must not change this function as it is required by the eCTF framework.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -105,25 +79,21 @@ def parse_args():
 def main():
     """Main function of gen_secrets
 
-    You will likely not have to change this function
+    This function orchestrates the secrets generation process, parsing arguments and writing
+    the result to a file. You will likely not have to change this function.
     """
-    # Parse the command line arguments
     args = parse_args()
 
+    # Generate the secrets
     secrets = gen_secrets(args.channels)
 
-    # Print the generated secrets for your own debugging
-    # Attackers will NOT have access to the output of this, but feel free to remove
-    #
     # NOTE: Printing sensitive data is generally not good security practice
     logger.debug(f"Generated secrets: {secrets}")
 
-    # Open the file, erroring if the file exists unless the --force arg is provided
+    # Open the file, using 'wb' to overwrite if --force is set, else 'xb' to avoid overwriting
     with open(args.secrets_file, "wb" if args.force else "xb") as f:
-        # Dump the secrets to the file
         f.write(secrets)
 
-    # For your own debugging. Feel free to remove
     logger.success(f"Wrote secrets to {str(args.secrets_file.absolute())}")
 
 
