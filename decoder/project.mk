@@ -5,14 +5,13 @@
 # For instructions on how to use this system, see
 # https://analog-devices-msdk.github.io/msdk/USERGUIDE/#build-system
 
-MXC_OPTIMIZE_CFLAGS = -Og
+#MXC_OPTIMIZE_CFLAGS = -Og
 # ^ For example, you can uncomment this line to 
 # optimize the project for debugging
 
 # **********************************************************
 
 # Add your config here!
-WOLFSSL_USE_OPTIONS_H=1
 
 # This example is only compatible with the FTHR board,
 # so we override the BOARD value to hard-set it.
@@ -22,7 +21,11 @@ MFLOAT_ABI=soft
 IPATH+=../deployment
 IPATH+=inc/
 VPATH+=src/
-PROJ_CFLAGS+=-g
+
+PROJ_CFLAGS+=-DCRYPTO_EXAMPLE
+
+PROJ_CFLAGS+=-DWOLFSSL_USER_SETTINGS
+
 # ****************** eCTF Bootloader *******************
 # DO NOT REMOVE
 LINKERFILE=firmware.ld
@@ -36,7 +39,7 @@ ENTRY=firmware_startup
 # WolfSSL can be downloaded from: https://www.wolfssl.com/download/
 
 # Disable Crypto Example
-# CRYPTO_EXAMPLE=0
+#CRYPTO_EXAMPLE=0
 
 # Enable Crypto Example
 CRYPTO_EXAMPLE=1
