@@ -1,0 +1,17 @@
+https://s1monsays.com/en/2021-03-13-com0com/
+----------------
+docker run --rm -v .\build_out:/out -v .\:/decoder -v .\..\secrets:/secrets -e DECODER_ID=0xdeadbeef decoder
+copy insecure.bin d:
+. .\.venv\Scripts\Activate.ps1
+python -m ectf25.utils.flash .\build_out\max78000.bin COM5
+python -m ectf25_design.gen_subscription secrets/secrets.json subscription.bin 0xDEADBEEF 32 17421764099962590 1
+python -m ectf25.tv.subscribe subscription.bin COM5
+python -m ectf25.tv.list COM5
+----------------
+python -m ectf25.uplink secrets\secrets.json localhost 2000 1:1:frames/x_c0.json
+python -m ectf25.satellite localhost 2000 localhost 1:2001
+python -m ectf25.tv.run localhost 2001 COM5
+----------------
+2025-ectf-insecure-example/decoder/src/decoder.c
+2025-ectf-insecure-example/design/ectf25_design/encoder.py
+
