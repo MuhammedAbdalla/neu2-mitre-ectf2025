@@ -215,7 +215,6 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
 
 int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) 
 {
-
     MXC_TMR_SW_Start(latency_timer);
 
     char output_buf[128] = {0};
@@ -234,69 +233,111 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
     frame_size = pkt_len - (sizeof(new_frame->channel) + sizeof(new_frame->timestamp));
 
     bool found = false;
-
     timestamp_t start_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
     timestamp_t end_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
  
-    for (uint32_t i = 0; i < MAX_CHANNEL_COUNT; i++)
+    // First the emergency channel (0) 
+    uint32_t emergency_channel = EMERGENCY_CHANNEL; 
+    
+    uint8_t temp_frame[pkt_len];
+    memcpy(temp_frame, new_frame, pkt_len);
+
     {
-        if (decoder_status.subscribed_channels[i].active) 
-	{
-            uint32_t channel = decoder_status.subscribed_channels[i].id;
-            /*
-            uint8_t iv[BLOCK_SIZE];
-            memcpy(iv + 4, kve, BLOCK_SIZE - 4);
-	        iv[0] = channel & 0xff;
-	        iv[1] = (channel & 0xff00) >> 8;
-	        iv[2] = (channel & 0xff0000) >> 16;
-	        iv[3] = (channel & 0xff000000) >> 24;
-            */
+        uint8_t iv[BLOCK_SIZE];
+        uint8_t iv_salt[8];
+        uint8_t channel_hash[SHA256_DIGEST_SIZE];
+        Sha256 sha;
 
-            uint8_t iv[BLOCK_SIZE];
-            uint8_t iv_salt[8];
-            uint8_t channel_hash[SHA256_DIGEST_SIZE];
-            Sha256 sha;
+        memcpy(iv_salt, kse + (KEY_SIZE - 8), 8);
 
-            memcpy(iv_salt, kse + (KEY_SIZE - 8), 8);
+        wc_InitSha256(&sha);
+        wc_Sha256Update(&sha, (uint8_t*)&emergency_channel, sizeof(emergency_channel));
+        wc_Sha256Update(&sha, iv_salt, sizeof(iv_salt)); 
+        wc_Sha256Final(&sha, channel_hash);
 
-            wc_InitSha256(&sha);
-            wc_Sha256Update(&sha, (uint8_t*)&channel, sizeof(channel));
-            wc_Sha256Update(&sha, iv_salt, sizeof(iv_salt)); 
-            wc_Sha256Final(&sha, channel_hash);
+        memcpy(iv, channel_hash, 4);
+        memcpy(iv + 4, kve + 4, BLOCK_SIZE - 4);
 
-            memcpy(iv, channel_hash, 4);
-            memcpy(iv + 4, kve + 4, BLOCK_SIZE - 4);
+        uint8_t emergency_kve[KEY_SIZE];
+        derive_session_key(kve, emergency_channel, emergency_kve);
 
-            uint8_t session_kve[KEY_SIZE];
-            derive_session_key(kve, channel, session_kve);
-
-            if (decrypt_cbc_aes256((uint8_t*)new_frame, pkt_len, session_kve, (uint8_t*)new_frame, iv) < 0)
+        if (decrypt_cbc_aes256(temp_frame, pkt_len, emergency_kve, temp_frame, iv) >= 0)
+        {
+            frame_packet_t* temp_frame_struct = (frame_packet_t*)temp_frame;
+            
+            if (temp_frame_struct->channel == EMERGENCY_CHANNEL)
             {
-                STATUS_LED_RED();
-                print_error("Failed to decrypt!");
-                return -1;
-	    }
-	    else
-	    {
-                if (channel == new_frame->channel)
-		{
-                    start_timestamp = decoder_status.subscribed_channels[i].start_timestamp;
-                    end_timestamp = decoder_status.subscribed_channels[i].end_timestamp;
+                memcpy(new_frame, temp_frame, pkt_len);
+                
+                found = true;
+                channel = EMERGENCY_CHANNEL;
+                start_timestamp = 0;
+                end_timestamp = UINT64_MAX;
+            }
+        }
+    }
 
-                    found = true;
+    if (!found)
+    {
+        for (uint32_t i = 0; i < MAX_CHANNEL_COUNT; i++)
+        {
+            if (decoder_status.subscribed_channels[i].active) 
+            {
+                uint32_t channel = decoder_status.subscribed_channels[i].id;
+                /*
+                uint8_t iv[BLOCK_SIZE];
+                memcpy(iv + 4, kve, BLOCK_SIZE - 4);
+                iv[0] = channel & 0xff;
+                iv[1] = (channel & 0xff00) >> 8;
+                iv[2] = (channel & 0xff0000) >> 16;
+                iv[3] = (channel & 0xff000000) >> 24;
+                */
 
-		    break;
-		}
-	    }
-	}
+                uint8_t iv[BLOCK_SIZE];
+                uint8_t iv_salt[8];
+                uint8_t channel_hash[SHA256_DIGEST_SIZE];
+                Sha256 sha;
+
+                memcpy(iv_salt, kse + (KEY_SIZE - 8), 8);
+
+                wc_InitSha256(&sha);
+                wc_Sha256Update(&sha, (uint8_t*)&channel, sizeof(channel));
+                wc_Sha256Update(&sha, iv_salt, sizeof(iv_salt)); 
+                wc_Sha256Final(&sha, channel_hash);
+
+                memcpy(iv, channel_hash, 4);
+                memcpy(iv + 4, kve + 4, BLOCK_SIZE - 4);
+
+                uint8_t session_kve[KEY_SIZE];
+                derive_session_key(kve, channel, session_kve);
+
+                uint8_t channel_frame[pkt_len];
+                memcpy(channel_frame, new_frame, pkt_len);
+
+                if (decrypt_cbc_aes256(channel_frame, pkt_len, session_kve, channel_frame, iv) >= 0)
+                {
+                    frame_packet_t* channel_frame_struct = (frame_packet_t*)channel_frame;
+                    
+                    if (channel == channel_frame_struct->channel)
+                    {
+                        memcpy(new_frame, channel_frame, pkt_len);
+                        
+                        start_timestamp = decoder_status.subscribed_channels[i].start_timestamp;
+                        end_timestamp = decoder_status.subscribed_channels[i].end_timestamp;
+
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
     }
 
     if (!found)
     {
         STATUS_LED_RED();
         print_error("Invalid channel id!");
-
-	return -1;
+        return -1;
     }
     
     channel = new_frame->channel;
@@ -307,14 +348,11 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
     if (timestamp < start_timestamp || timestamp > end_timestamp)
     {
         STATUS_LED_RED();
-
-	/*char aux[0x100];
-	sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
+        /*char aux[0x100];
+        sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
         print_error(aux);*/
-
         print_error("Timestamp validation failed");
-
-	return -1;
+        return -1;
     }
 
     static timestamp_t last_timestamp = 0;
@@ -324,8 +362,7 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
     {
         STATUS_LED_RED();
         print_error("Timestamp is not increasing!");
-
-	return -1;
+        return -1;
     }
 
     last_timestamp = timestamp;
@@ -338,36 +375,35 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
 
-	size_t len;
-
-	uint8_t* data = rle_decode(new_frame->data, frame_size, &len);
+        size_t len;
+        uint8_t* data = rle_decode(new_frame->data, frame_size, &len);
     
-    //uint8_t padding_value = data[len - 1];
-    /*
-    if (len > 0) {
-        uint8_t last_byte = data[len - 1];
-        
-        if (last_byte <= 0x20) {
-            int padding_count = 0;
-
-            while (padding_count < len && data[len - 1 - padding_count] == last_byte) {
-                padding_count++;
-            }
+        //uint8_t padding_value = data[len - 1];
+        /*
+        if (len > 0) {
+            uint8_t last_byte = data[len - 1];
             
-            if (padding_count >= last_byte) {
-                len -= last_byte;
+            if (last_byte <= 0x20) {
+                int padding_count = 0;
+
+                while (padding_count < len && data[len - 1 - padding_count] == last_byte) {
+                    padding_count++;
+                }
+                
+                if (padding_count >= last_byte) {
+                    len -= last_byte;
+                }
             }
         }
-    }
-    */
-    
-    write_packet(DECODE_MSG, data, 64); 
-
-    unsigned int elapsed = MXC_TMR_SW_Stop(latency_timer);
-    sprintf(output_buf, "Decode latency: %u cycles\n", elapsed);
-    print_debug(output_buf);
+        */
         
-    return 0;
+        write_packet(DECODE_MSG, data, 64); 
+
+        unsigned int elapsed = MXC_TMR_SW_Stop(latency_timer);
+        sprintf(output_buf, "Decode latency: %u cycles\n", elapsed);
+        print_debug(output_buf);
+            
+        return 0;
     
     } else {
         STATUS_LED_RED();
