@@ -14,10 +14,20 @@ import argparse
 import json
 from pathlib import Path
 import struct
+import hashlib
 
 from loguru import logger
 
 from ectf25_design.crypto_helper import *
+
+def derive_session_key(base_key, timestamp):
+    """Derive a session-specific key based on timestamp."""
+    time_period = (timestamp >> 32) & 0xFFFFFFFF
+    time_period_bytes = struct.pack("<I", time_period)
+    
+    h = HMAC.new(base_key, digestmod=SHA256)
+    h.update(time_period_bytes)
+    return bytearray(h.digest())
 
 def gen_subscription(
     secrets: bytes, device_id: int, start: int, end: int, channel: int

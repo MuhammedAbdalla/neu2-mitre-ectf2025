@@ -13,12 +13,14 @@ Copyright: Copyright (c) 2025 The MITRE Corporation
 import argparse
 import struct
 import json
+import hashlib
 
 from ectf25_design.crypto_helper import *
 
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad, unpad
 from Crypto.Hash import HMAC, SHA256
+
 
 class Encoder:
     def __init__(self, secrets: bytes):
@@ -39,6 +41,14 @@ class Encoder:
         self.some_secrets = secrets["some_secrets"]
         
         (self.kve, self.kse, self.kfe, self.kva, self.ksa, self.kfa) = derive_keys(self.some_secrets);
+    
+    def derive_session_key(self, base_key, channel):
+        """Derive a session-specific key based on channel"""
+        channel_bytes = struct.pack("<I", channel)
+    
+        h = HMAC.new(base_key, digestmod=SHA256)
+        h.update(channel_bytes)
+        return bytearray(h.digest())
 
     def encode(self, channel: int, frame: bytes, timestamp: int) -> bytes:
         """The frame encoder function
@@ -69,10 +79,26 @@ class Encoder:
         #print(timestamp)
         
         array = bytearray(frame)
+        #iv = frame[0:4] + self.kve[0:12]
 
-        iv = frame[0:4] + self.kve[0:12]
+        #channel = struct.unpack("<I", frame[0:4])[0]
+        channel_bytes = struct.pack("<I", channel)
 
-        array = encrypt_cbc_aes256(array, self.kve, iv)
+        iv_salt = self.kse[len(self.kse)-8:]
+
+        hash_input = channel_bytes + iv_salt
+    
+        hash_input = frame[0:4] + iv_salt  
+        
+        channel_hash = hashlib.sha256(hash_input).digest()
+    
+        iv = channel_hash[0:4] + self.kve[4:16]
+
+        session_kve = self.derive_session_key(self.kve, channel)
+
+        #array = encrypt_cbc_aes256(array, self.kve, iv)
+        
+        array = encrypt_cbc_aes256(array, session_kve, iv)
 
         hmac = hmac_sha256(array, self.kva) 
 

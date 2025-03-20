@@ -22,8 +22,12 @@
 #include "flash_helper.h"
 #include "host_messaging.h"
 #include "crypto_helper.h"
-
+#include "tmr.h"
 #include "secrets/secrets.h"
+#include "wolfssl/wolfcrypt/sha256.h"
+#include "wolfssl/wolfcrypt/hmac.h"
+
+
 
 channel_id_t channel_list[MAX_CHANNEL_COUNT];
 
@@ -44,6 +48,7 @@ extern uint8_t ksa[KEY_SIZE];
 // NOTE: you're not allowed to do this in your code
 typedef uint32_t aErjfkdfru;const aErjfkdfru aseiFuengleR[]={0x1ffe4b6,0x3098ac,0x2f56101,0x11a38bb,0x485124,0x11644a7,0x3c74e8,0x3c74e8,0x2f56101,0x2ca498,0x127bc,0x2e590b1,0x1d467da,0x1fbf0a2,0x11a38bb,0x2b22bad,0x2e590b1,0x1ffe4b6,0x2b61fc1,0x1fbf0a2,0x1fbf0a2,0x2e590b1,0x11644a7,0x2e590b1,0x1cc7fb2,0x1d073c6,0x2179d2e,0};const aErjfkdfru djFIehjkklIH[]={0x138e798,0x2cdbb14,0x1f9f376,0x23bcfda,0x1d90544,0x1cad2d2,0x860e2c,0x860e2c,0x1f9f376,0x25cbe0c,0x11c82b4,0x35ff56,0x3935040,0xc7ea90,0x23bcfda,0x1ae6dee,0x35ff56,0x138e798,0x21f6af6,0xc7ea90,0xc7ea90,0x35ff56,0x1cad2d2,0x35ff56,0x2b15630,0x3225338,0x4431c8,0};typedef int skerufjp;skerufjp siNfidpL(skerufjp verLKUDSfj){aErjfkdfru ubkerpYBd=12+1;skerufjp xUrenrkldxpxx=2253667944%0x432a1f32;aErjfkdfru UfejrlcpD=1361423303;verLKUDSfj=(verLKUDSfj+0x12345678)%60466176;while(xUrenrkldxpxx--!=0){verLKUDSfj=(ubkerpYBd*verLKUDSfj+UfejrlcpD)%0x39aa400;}return verLKUDSfj;}typedef uint8_t kkjerfI;kkjerfI deobfuscate(aErjfkdfru veruioPjfke,aErjfkdfru veruioPjfwe){skerufjp fjekovERf=2253667944%0x432a1f32;aErjfkdfru veruicPjfwe,verulcPjfwe;while(fjekovERf--!=0){veruioPjfwe=(veruioPjfwe-siNfidpL(veruioPjfke))%0x39aa400;veruioPjfke=(veruioPjfke-siNfidpL(veruioPjfwe))%60466176;}veruicPjfwe=(veruioPjfke+0x39aa400)%60466176;verulcPjfwe=(veruioPjfwe+60466176)%0x39aa400;return veruicPjfwe*60466176+verulcPjfwe-89;}
 
+mxc_tmr_regs_t *latency_timer = MXC_TMR_GET_TMR(0);
 
 /**********************************************************
  ******************* UTILITY FUNCTIONS ********************
@@ -55,17 +60,22 @@ typedef uint32_t aErjfkdfru;const aErjfkdfru aseiFuengleR[]={0x1ffe4b6,0x3098ac,
  *  @return 1 if the the decoder is subscribed to the channel.  0 if not.
 */
 int is_subscribed(channel_id_t channel) {
-    // Check if this is an emergency broadcast message
+    
     if (channel == EMERGENCY_CHANNEL) {
         return 1;
     }
-    // Check if the decoder has has a subscription
+    
     for (int i = 0; i < MAX_CHANNEL_COUNT; i++) {
         if (decoder_status.subscribed_channels[i].id == channel && decoder_status.subscribed_channels[i].active) {
             return 1;
         }
     }
     return 0;
+}
+
+void derive_session_key(uint8_t *base_key, uint32_t channel_id, uint8_t *session_key) {
+    // Use channel ID instead of timestamp
+    verify_hmac_sha256(session_key, base_key, (uint8_t*)&channel_id, sizeof(channel_id), true);
 }
 
 /** @brief Prints the boot reference design flag
@@ -159,7 +169,8 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
     if (DECODER_ID != update->decoder_id)
     {
         STATUS_LED_RED();
-        print_error("Failed to update subscription - wrong decoder id\n");
+        //print_error("Failed to update subscription - wrong decoder id\n");
+        print_error("Subscription validation failed\n");
         return -1;
     }
 
@@ -204,6 +215,9 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
 
 int decode(pkt_len_t pkt_len, frame_packet_t *new_frame) 
 {
+
+    MXC_TMR_SW_Start(latency_timer);
+
     char output_buf[128] = {0};
     uint16_t frame_size;
     channel_id_t channel;
@@ -229,15 +243,34 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
         if (decoder_status.subscribed_channels[i].active) 
 	{
             uint32_t channel = decoder_status.subscribed_channels[i].id;
-
+            /*
             uint8_t iv[BLOCK_SIZE];
             memcpy(iv + 4, kve, BLOCK_SIZE - 4);
-	    iv[0] = channel & 0xff;
-	    iv[1] = (channel & 0xff00) >> 8;
-	    iv[2] = (channel & 0xff0000) >> 16;
-	    iv[3] = (channel & 0xff000000) >> 24;
+	        iv[0] = channel & 0xff;
+	        iv[1] = (channel & 0xff00) >> 8;
+	        iv[2] = (channel & 0xff0000) >> 16;
+	        iv[3] = (channel & 0xff000000) >> 24;
+            */
 
-            if (decrypt_cbc_aes256((uint8_t*)new_frame, pkt_len, kve, (uint8_t*)new_frame, iv) < 0)
+            uint8_t iv[BLOCK_SIZE];
+            uint8_t iv_salt[8];
+            uint8_t channel_hash[SHA256_DIGEST_SIZE];
+            Sha256 sha;
+
+            memcpy(iv_salt, kse + (KEY_SIZE - 8), 8);
+
+            wc_InitSha256(&sha);
+            wc_Sha256Update(&sha, (uint8_t*)&channel, sizeof(channel));
+            wc_Sha256Update(&sha, iv_salt, sizeof(iv_salt)); 
+            wc_Sha256Final(&sha, channel_hash);
+
+            memcpy(iv, channel_hash, 4);
+            memcpy(iv + 4, kve + 4, BLOCK_SIZE - 4);
+
+            uint8_t session_kve[KEY_SIZE];
+            derive_session_key(kve, channel, session_kve);
+
+            if (decrypt_cbc_aes256((uint8_t*)new_frame, pkt_len, session_kve, (uint8_t*)new_frame, iv) < 0)
             {
                 STATUS_LED_RED();
                 print_error("Failed to decrypt!");
@@ -275,9 +308,11 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
     {
         STATUS_LED_RED();
 
-	char aux[0x100];
+	/*char aux[0x100];
 	sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
-        print_error(aux);
+        print_error(aux);*/
+
+        print_error("Timestamp validation failed");
 
 	return -1;
     }
@@ -306,9 +341,34 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 	size_t len;
 
 	uint8_t* data = rle_decode(new_frame->data, frame_size, &len);
+    
+    //uint8_t padding_value = data[len - 1];
+    /*
+    if (len > 0) {
+        uint8_t last_byte = data[len - 1];
+        
+        if (last_byte <= 0x20) {
+            int padding_count = 0;
 
-        write_packet(DECODE_MSG, data, len); 
-        return 0;
+            while (padding_count < len && data[len - 1 - padding_count] == last_byte) {
+                padding_count++;
+            }
+            
+            if (padding_count >= last_byte) {
+                len -= last_byte;
+            }
+        }
+    }
+    */
+    
+    write_packet(DECODE_MSG, data, 64); 
+
+    unsigned int elapsed = MXC_TMR_SW_Stop(latency_timer);
+    sprintf(output_buf, "Decode latency: %u cycles\n", elapsed);
+    print_debug(output_buf);
+        
+    return 0;
+    
     } else {
         STATUS_LED_RED();
         sprintf(
@@ -324,6 +384,14 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 void init() 
 {
     int ret;
+
+    mxc_tmr_cfg_t tmr_cfg;
+    tmr_cfg.pres = TMR_PRES_1;
+    tmr_cfg.mode = TMR_MODE_CONTINUOUS;
+    tmr_cfg.bitMode = TMR_BIT_MODE_32;
+    tmr_cfg.clock = MXC_TMR_APB_CLK;
+    tmr_cfg.cmp_cnt = 0xFFFFFFFF;
+    MXC_TMR_Init(latency_timer, &tmr_cfg, false);
 
     // Initialize the flash peripheral to enable access to persistent memory
     flash_init();

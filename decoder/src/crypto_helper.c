@@ -21,19 +21,20 @@ extern channel_id_t channel_list[MAX_CHANNEL_COUNT];
 
 void hex_dump(uint8_t* data, size_t len, char* tmp)
 {
-	sprintf(tmp, "%d) ", len);
-
-	for (size_t i = 0; i < len; i++)
-	{
-		if (i)
-		{
-			strcat(tmp, ",");
-		}
-
-		char aux[0x10];
-		sprintf(aux, "%02X", data[i]);
-		strcat(tmp, aux);
-	}
+    int pos = 0;
+    int max_size = 127; 
+    
+    pos += snprintf(tmp + pos, max_size - pos, "%d) ", len);
+    
+    for (size_t i = 0; i < len && pos < max_size - 4; i++)
+    {
+        if (i) {
+            tmp[pos++] = ',';
+        }
+        pos += snprintf(tmp + pos, max_size - pos, "%02X", data[i]);
+    }
+    
+    tmp[pos < max_size ? pos : max_size - 1] = '\0';
 }
 
 uint8_t* rle_decode(const uint8_t* encoded_data, size_t encoded_len, size_t* decoded_len)
@@ -59,7 +60,24 @@ uint8_t* rle_decode(const uint8_t* encoded_data, size_t encoded_len, size_t* dec
         }
     }
 
-    *decoded_len = decoded_size;
+    if (decoded_index > 0) {
+        uint8_t padding_value = decoded_data[decoded_index - 1];
+        if (padding_value > 0 && padding_value <= 32) {  
+            bool valid_padding = true;
+            for (int i = 1; i <= padding_value && i < decoded_index; i++) {
+                if (decoded_data[decoded_index - i] != padding_value) {
+                    valid_padding = false;
+                    break;
+                }
+            }
+            
+            if (valid_padding) {
+                decoded_index -= padding_value;
+            }
+        }
+    }
+
+    *decoded_len = decoded_index;
     return decoded_data;
 }
 
@@ -103,6 +121,26 @@ int encrypt_cbc_aes256(uint8_t *plaintext, size_t len, uint8_t *key, uint8_t *ci
     return 0;
 }
 
+/**
+ * @brief Compares two memory regions in constant time
+ * 
+ * @param a First memory region
+ * @param b Second memory region
+ * @param size Size of memory regions to compare
+ * @return 0 if equal, non-zero if different
+ */
+static int constant_time_memcmp(const void* a, const void* b, size_t size) {
+    const unsigned char* a_ptr = (const unsigned char*)a;
+    const unsigned char* b_ptr = (const unsigned char*)b;
+    unsigned char result = 0;
+    
+    for (size_t i = 0; i < size; i++) {
+        result |= a_ptr[i] ^ b_ptr[i];
+    }
+    
+    return result; 
+}
+
 int verify_hmac_sha256(uint8_t *hmac, uint8_t *key, uint8_t *message, size_t message_len, bool compute)
 {
     int ret;
@@ -139,7 +177,8 @@ int verify_hmac_sha256(uint8_t *hmac, uint8_t *key, uint8_t *message, size_t mes
     }
     else
     {
-    	return memcmp(hmac, computed_hmac, SHA256_DIGEST_SIZE);
+    	//return memcmp(hmac, computed_hmac, SHA256_DIGEST_SIZE);
+		return constant_time_memcmp(hmac, computed_hmac, SHA256_DIGEST_SIZE);
     }
 }
 

@@ -178,6 +178,7 @@ VPATH := $(VPATH)
 # Where to find header files for this project
 IPATH += .
 IPATH += include
+IPATH += inc
 # eCTF Crypto Example
 IPATH += wolfssl
 IPATH := $(IPATH)
