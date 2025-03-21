@@ -75,13 +75,9 @@ class Encoder:
         frame = bytes(array)
 
         frame = struct.pack("<IQ", channel, timestamp) + frame
-
-        #print(timestamp)
         
         array = bytearray(frame)
-        #iv = frame[0:4] + self.kve[0:12]
 
-        #channel = struct.unpack("<I", frame[0:4])[0]
         channel_bytes = struct.pack("<I", channel)
 
         iv_salt = self.kse[len(self.kse)-8:]
@@ -95,8 +91,6 @@ class Encoder:
         iv = channel_hash[0:4] + self.kve[4:16]
 
         session_kve = self.derive_session_key(self.kve, channel)
-
-        #array = encrypt_cbc_aes256(array, self.kve, iv)
         
         array = encrypt_cbc_aes256(array, session_kve, iv)
 

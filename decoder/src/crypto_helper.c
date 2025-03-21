@@ -245,17 +245,6 @@ void generate_secrets(char *sec)
 		}
 	}
 
-#if 0
-	for (int i = 0; i < MAX_CHANNEL_COUNT; i++)
-	{
-		if (channel_list[i])
-		{
-			char aux[0x100];
-			sprintf(aux, "CHANNEL %d", channel_list[i]);
-			print_debug(aux);
-		}
-	}
-#endif
 
 #define SECRET_STR "+s+: +"
 
@@ -287,12 +276,6 @@ void generate_secrets(char *sec)
 		}
 	}
 
-#if 0
-	char aux[0x500];
-	sprintf(aux, "SECRET [%s]", secret);
-	print_debug(aux);
-#endif
-
 	verify_hmac_sha256(kve, (uint8_t*)secret, (uint8_t*)secret, strlen(secret), true);
 	verify_hmac_sha256(kse, (uint8_t*)secret+5, (uint8_t*)secret, strlen(secret), true);
 	verify_hmac_sha256(kfe, (uint8_t*)secret+10, (uint8_t*)secret, strlen(secret), true);
@@ -300,22 +283,4 @@ void generate_secrets(char *sec)
 	verify_hmac_sha256(ksa, (uint8_t*)secret+20, (uint8_t*)secret, strlen(secret), true);
 	verify_hmac_sha256(kfa, (uint8_t*)secret+25, (uint8_t*)secret, strlen(secret), true);
 
-#if 0
-	hex_dump(secret, strlen(secret), aux);
-	print_debug(aux);
-	
-	hex_dump(kve, KEY_SIZE, aux);
-	print_debug(aux);
-	hex_dump(kse, KEY_SIZE, aux);
-	print_debug(aux);
-	hex_dump(kfe, KEY_SIZE, aux);
-	print_debug(aux);
-
-	hex_dump(kva, KEY_SIZE, aux);
-	print_debug(aux);
-	hex_dump(ksa, KEY_SIZE, aux);
-	print_debug(aux);
-	hex_dump(kfa, KEY_SIZE, aux);
-	print_debug(aux);
-#endif
 }
