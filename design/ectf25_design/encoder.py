@@ -82,11 +82,13 @@ class Encoder:
 
         iv_salt = self.kse[len(self.kse)-8:]
 
-        hash_input = channel_bytes + iv_salt
-    
-        hash_input = frame[0:4] + iv_salt  
+        hash_obj = hashlib.sha256()
+
+        hash_obj.update(channel_bytes)
+
+        hash_obj.update(iv_salt)
         
-        channel_hash = hashlib.sha256(hash_input).digest()
+        channel_hash = hash_obj.digest()
     
         iv = channel_hash[0:4] + self.kve[4:16]
 

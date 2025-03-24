@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 
+#include "wolfssl_config.h"
 #include "wolfssl/wolfcrypt/aes.h"
 #include "wolfssl/wolfcrypt/hash.h"
 

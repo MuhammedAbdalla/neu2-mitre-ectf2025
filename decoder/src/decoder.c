@@ -115,14 +115,21 @@ int list_channels()
 int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update) 
 {
     int i;
+    char debug_buf[128] = {0};
 
     pkt_len -= SHA256_DIGEST_SIZE;
+
+    print_debug("Attempting to process subscription\n");
+    sprintf(debug_buf, "Packet length: %d bytes\n", pkt_len);
+    print_debug(debug_buf);
 
     if (verify_hmac_sha256((uint8_t*)update + pkt_len, ksa, (uint8_t*)update, pkt_len, false) < 0)
     {
         print_error("Failed to authenticate subscription!");
         return -1;
     }
+
+    print_debug("HMAC authentication successful\n");
 
     uint8_t iv[BLOCK_SIZE];
     memcpy(iv, kse, BLOCK_SIZE);
@@ -133,6 +140,15 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
 
         return -1;
     }
+
+    print_debug("Decryption successful\n");
+    
+    sprintf(debug_buf, "Subscription - Channel: %u, Device ID: 0x%08x\n", 
+            update->channel, update->decoder_id);
+    print_debug(debug_buf);
+    
+    sprintf(debug_buf, "Decoder ID (expected): 0x%08x\n", DECODER_ID);
+    print_debug(debug_buf);
 
     if (update->channel == EMERGENCY_CHANNEL) {
         STATUS_LED_RED();
