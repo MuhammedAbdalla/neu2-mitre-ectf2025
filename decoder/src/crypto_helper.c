@@ -43,16 +43,14 @@ uint8_t* rle_decode(const uint8_t* encoded_data, size_t encoded_len, size_t* dec
         return NULL;
     }
 
-    size_t decoded_size = 0;
-    for (size_t i = 0; i < encoded_len; i += 2) {
-        decoded_size += encoded_data[i];
-    }
+    size_t decoded_size = encoded_data[0] | (encoded_data[1] << 8);
 
     static uint8_t decoded_data[0x1000];
-    memset(decoded_data, 0, sizeof(decoded_data));
+
+	memset(decoded_data, 0, sizeof(decoded_data)); 
 
     size_t decoded_index = 0;
-    for (size_t i = 0; i < encoded_len; i += 2) {
+    for (size_t i = 2; i < encoded_len; i += 2) {
         uint8_t count = encoded_data[i];
         uint8_t value = encoded_data[i + 1];
         for (uint8_t j = 0; j < count; ++j) {

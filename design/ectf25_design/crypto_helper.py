@@ -24,6 +24,10 @@ def rle_encode(data: bytearray) -> bytearray:
         return bytearray()
 
     encoded = bytearray()
+
+    encoded.append(len(data) & 0xff);
+    encoded.append((len(data) & 0xff00) >> 8);
+
     current_byte = data[0]
     count = 1
 
@@ -59,11 +63,15 @@ def hmac_sha256(message: bytearray, key: bytearray) -> bytearray:
 def encrypt_cbc_aes256(plaintext: bytearray, key: bytearray, iv: bytearray) -> bytearray:
     try:
         block_size = AES.block_size
-        if len(plaintext) % block_size != 0:
-            plaintext.extend([0] * (block_size - (len(plaintext) % block_size)))
         
+        padding_needed = block_size - (len(plaintext) % block_size) if len(plaintext) % block_size != 0 else 0
+        
+        padded_plaintext = bytearray(plaintext)
+        if padding_needed > 0:
+            padded_plaintext.extend([0] * padding_needed)
+            
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        ciphertext = cipher.encrypt(bytes(plaintext))
+        ciphertext = cipher.encrypt(bytes(padded_plaintext))
         return bytearray(ciphertext)
     except ValueError as e:
         print(f"Encryption error: {e}")
@@ -74,6 +82,5 @@ def encrypt_cbc_aes256(plaintext: bytearray, key: bytearray, iv: bytearray) -> b
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
         return None
-
+    
     return None
-
