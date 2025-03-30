@@ -24,6 +24,10 @@ def rle_encode(data: bytearray) -> bytearray:
         return bytearray()
 
     encoded = bytearray()
+
+    encoded.append(len(data) & 0xff);
+    encoded.append((len(data) & 0xff00) >> 8);
+
     current_byte = data[0]
     count = 1
 
