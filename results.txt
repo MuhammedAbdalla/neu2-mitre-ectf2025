@@ -1,3 +1,0 @@
-Timing fails: 0
-Total decodes: 1570
-Failure rate: 0.0

@@ -138,7 +138,11 @@ int verify_hmac_sha256(uint8_t *hmac, uint8_t *key, uint8_t *message, size_t mes
     }
     else
     {
-    	return memcmp(hmac, computed_hmac, SHA256_DIGEST_SIZE);
+    	unsigned char result = 0;
+        for (size_t i = 0; i < SHA256_DIGEST_SIZE; i++) {
+            result |= hmac[i] ^ computed_hmac[i];
+        }
+        return result;
     }
 }
 
