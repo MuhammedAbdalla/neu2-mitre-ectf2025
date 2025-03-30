@@ -58,9 +58,12 @@ def hmac_sha256(message: bytearray, key: bytearray) -> bytearray:
 
 def encrypt_cbc_aes256(plaintext: bytearray, key: bytearray, iv: bytearray) -> bytearray:
     try:
+        block_size = AES.block_size
+        if len(plaintext) % block_size != 0:
+            plaintext.extend([0] * (block_size - (len(plaintext) % block_size)))
+        
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        padded_plaintext = pad(bytes(plaintext), AES.block_size) # Pad to multiple of block size
-        ciphertext = cipher.encrypt(padded_plaintext)
+        ciphertext = cipher.encrypt(bytes(plaintext))
         return bytearray(ciphertext)
     except ValueError as e:
         print(f"Encryption error: {e}")

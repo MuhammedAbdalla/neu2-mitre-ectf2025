@@ -73,7 +73,6 @@ class TV:
                 timestamp = frame["timestamp"]
                 encoded = binascii.a2b_hex(frame.pop("encoded"))
                 logger.debug(f"Received encoded ({channel}, {timestamp}): {encoded}")
-                print("rec enc")
 
                 # Put frame in decode queue
                 self.to_decode.put_nowait(encoded)
@@ -95,8 +94,6 @@ class TV:
                 if not self.to_decode.empty():
                     # Get an encoded frame from the queue
                     encoded = self.to_decode.get_nowait()
-
-                    print("TO ENCODED")
 
                     # Send the frame to be decoded
                     decoded = self.decoder.decode(encoded)

@@ -117,6 +117,7 @@ class DecoderIntf:
     def _open(self):
         """Open the serial connection if not already opened"""
         if not self.ser.is_open:
+            print("OPEN SERIAL")
             self.ser.open()
 
     def decode(self, frame: bytes) -> bytes:
@@ -127,6 +128,7 @@ class DecoderIntf:
         :raises DecoderError: Error on decode failure
         """
         # send decode message
+        print("DECODE!")
         msg = Message(Opcode.DECODE, frame)
         self.send_msg(msg)
 
