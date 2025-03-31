@@ -177,7 +177,6 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
         return -1;
     }
 
-    // Find the first empty slot in the subscription array
     for (i = 0; i < MAX_CHANNEL_COUNT; i++) {
         if (decoder_status.subscribed_channels[i].id == update->channel || !decoder_status.subscribed_channels[i].active) {
             decoder_status.subscribed_channels[i].active = true;
@@ -188,7 +187,6 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
         }
     }
 
-    // If we do not have any room for more subscriptions
     if (i == MAX_CHANNEL_COUNT) {
         STATUS_LED_RED();
         print_error("Failed to update subscription - max subscriptions installed\n");
@@ -197,7 +195,6 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
 
     flash_erase_page(FLASH_STATUS_ADDR);
     flash_write(FLASH_STATUS_ADDR, &decoder_status, sizeof(flash_entry_t));
-    // Success message with an empty body
     write_packet(SUBSCRIBE_MSG, NULL, 0);
     return 0;
 }
@@ -219,43 +216,67 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 
     frame_size = pkt_len - (sizeof(new_frame->channel) + sizeof(new_frame->timestamp));
 
-    bool found = false;
+    uint8_t emergency_iv[BLOCK_SIZE];
+    memcpy(emergency_iv + 4, kve, BLOCK_SIZE - 4);
+    emergency_iv[0] = EMERGENCY_CHANNEL & 0xff;
+    emergency_iv[1] = (EMERGENCY_CHANNEL & 0xff00) >> 8;
+    emergency_iv[2] = (EMERGENCY_CHANNEL & 0xff0000) >> 16;
+    emergency_iv[3] = (EMERGENCY_CHANNEL & 0xff000000) >> 24;
 
+    frame_packet_t emergency_frame;
+    memcpy(&emergency_frame, new_frame, pkt_len);
+
+    if (decrypt_cbc_aes256((uint8_t*)&emergency_frame, pkt_len, kve, (uint8_t*)&emergency_frame, emergency_iv) == 0)
+    {
+        if (emergency_frame.channel == EMERGENCY_CHANNEL) {
+            print_debug("Emergency channel frame detected");
+            
+            channel = EMERGENCY_CHANNEL;
+            timestamp_t timestamp = emergency_frame.timestamp;
+            
+            size_t len;
+            uint8_t* data = rle_decode(emergency_frame.data, frame_size, &len);
+            write_packet(DECODE_MSG, data, len);
+            return 0;
+        }
+    }
+
+    bool found = false;
     timestamp_t start_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
     timestamp_t end_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
  
     for (uint32_t i = 0; i < MAX_CHANNEL_COUNT; i++)
     {
         if (decoder_status.subscribed_channels[i].active) 
-	{
+        {
             uint32_t channel = decoder_status.subscribed_channels[i].id;
 
             uint8_t iv[BLOCK_SIZE];
             memcpy(iv + 4, kve, BLOCK_SIZE - 4);
-	    iv[0] = channel & 0xff;
-	    iv[1] = (channel & 0xff00) >> 8;
-	    iv[2] = (channel & 0xff0000) >> 16;
-	    iv[3] = (channel & 0xff000000) >> 24;
+            iv[0] = channel & 0xff;
+            iv[1] = (channel & 0xff00) >> 8;
+            iv[2] = (channel & 0xff0000) >> 16;
+            iv[3] = (channel & 0xff000000) >> 24;
 
             if (decrypt_cbc_aes256((uint8_t*)new_frame, pkt_len, kve, (uint8_t*)new_frame, iv) < 0)
             {
                 STATUS_LED_RED();
                 print_error("Failed to decrypt!");
                 return -1;
-	    }
-	    else
-	    {
+            }
+            else
+            {
                 if (channel == new_frame->channel)
-		{
+                {
                     start_timestamp = decoder_status.subscribed_channels[i].start_timestamp;
                     end_timestamp = decoder_status.subscribed_channels[i].end_timestamp;
 
                     found = true;
 
-		    break;
-		}
-	    }
-	}
+                    break;
+                }
+            }
+        }
     }
 
     if (!found)
@@ -263,23 +284,22 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
         STATUS_LED_RED();
         print_error("Invalid channel id!");
 
-	return -1;
+        return -1;
     }
     
     channel = new_frame->channel;
 
-    // The reference design doesn't use the timestamp, but you may want to in your design
     timestamp_t timestamp = new_frame->timestamp;
 
     if (timestamp < start_timestamp || timestamp > end_timestamp)
     {
         STATUS_LED_RED();
 
-	char aux[0x100];
-	sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
+        char aux[0x100];
+        sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
         print_error(aux);
 
-	return -1;
+        return -1;
     }
 
     static timestamp_t last_timestamp = 0;
@@ -290,7 +310,7 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
         STATUS_LED_RED();
         print_error("Timestamp is not increasing!");
 
-	return -1;
+        return -1;
     }
 
     last_timestamp = timestamp;
@@ -303,9 +323,9 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
         /* The reference design doesn't need any extra work to decode, but your design likely will.
         *  Do any extra decoding here before returning the result to the host. */
 
-	size_t len;
+        size_t len;
 
-	uint8_t* data = rle_decode(new_frame->data, frame_size, &len);
+        uint8_t* data = rle_decode(new_frame->data, frame_size, &len);
 
         write_packet(DECODE_MSG, data, len); 
         return 0;
