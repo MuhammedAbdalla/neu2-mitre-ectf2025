@@ -218,7 +218,7 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 
     bool found = false;
 
-    timestamp_t start_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
+    timestamp_t start_timestamp = 0;
     timestamp_t end_timestamp = DEFAULT_CHANNEL_TIMESTAMP;
  
     for (uint32_t i = 0; i < MAX_CHANNEL_COUNT; i++)
