@@ -165,6 +165,9 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
 
     // Check if channel has been configured through secrets    
     for (i = 0; i < MAX_CHANNEL_COUNT; i++) {
+	    char aux[0x100];
+	    sprintf(aux, "CHECKING CHANNEL %u in %u\n", channel_list[i], update->channel);
+	    print_debug(aux);
 	    if (channel_list[i] && update->channel == channel_list[i])
 	    {
 		    break;
@@ -172,9 +175,12 @@ int update_subscription(pkt_len_t pkt_len, subscription_update_packet_t *update)
     }
 
     if (i == MAX_CHANNEL_COUNT) {
+#if 0
         STATUS_LED_RED();
         print_error("Failed to update subscription - channel not allowed\n");
         return -1;
+#endif
+        print_debug("Failed to update subscription - channel not allowed\n");
     }
 
     // Find the first empty slot in the subscription array
