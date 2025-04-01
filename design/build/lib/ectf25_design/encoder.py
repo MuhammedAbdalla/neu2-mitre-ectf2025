@@ -58,6 +58,8 @@ class Encoder:
 
         :returns: The encoded frame, which will be sent to the Decoder
         """
+        
+        print("ENCODING C:" + str(channel) + " TS: " + str(timestamp))
         array = bytearray(frame)
 
         array = rle_encode(array)
