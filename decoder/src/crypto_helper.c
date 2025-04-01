@@ -10,6 +10,8 @@
 
 #include "crypto_helper.h"
 
+#include "host_messaging.h"
+
 uint8_t kve[KEY_SIZE];
 uint8_t kse[KEY_SIZE];
 uint8_t kfe[KEY_SIZE];
@@ -203,7 +205,7 @@ void generate_secrets(char *sec)
 		}
 	}
 
-#if 0
+#if 1 
 	for (int i = 0; i < MAX_CHANNEL_COUNT; i++)
 	{
 		if (channel_list[i])

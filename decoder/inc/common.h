@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define MAX_CHANNEL_COUNT 8
+#define MAX_CHANNEL_COUNT 16 
 #define FRAME_SIZE 64
 
 #define EMERGENCY_CHANNEL 0
