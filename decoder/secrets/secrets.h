@@ -1,1 +1,1 @@
-#define SECRET " {+c+: [1, 3, 4], +s+: +1ae1bf99bcfdbc9e2e43dee81b30280ab316d211d306c71a5c766b3a4dcdb233fdb9a80fec3a80719b8a11331ce29188+} "
+#define SECRET " "

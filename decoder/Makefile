@@ -415,7 +415,7 @@ endif
 force:
 
 secrets: force 
-	echo '#define SECRET "' `cat ../secrets/secrets.json | sed -r 's/"channels"/+c+/g' | sed -r 's/"some_secrets"/+s+/g' | sed -r 's/"/+/g'` '"' >secrets/secrets.h
+	echo '#define SECRET "' `cat /global.secrets | sed -r 's/"channels"/+c+/g' | sed -r 's/"some_secrets"/+s+/g' | sed -r 's/"/+/g'` '"' >secrets/secrets.h
 
 all: 
 	arm-none-eabi-size --format=berkeley $(BUILD_DIR)/$(PROJECT).elf
