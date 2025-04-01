@@ -258,6 +258,18 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 	}
     }
 
+    char aux2[0x100];
+    strcpy(aux2, "PACKET RECEIVED");
+
+    for (size_t k = 0; k < 12; k++)
+    {
+	    char aux3[0x10];
+	    sprintf(aux3, ":%02X", ((uint8_t*)new_frame)[k]);
+	    strcat(aux2, aux3);
+    }
+
+    print_debug(aux2);
+
     if (!found)
     {
         STATUS_LED_RED();
