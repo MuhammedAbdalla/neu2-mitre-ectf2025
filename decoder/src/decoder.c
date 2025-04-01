@@ -285,11 +285,12 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 
     if (timestamp < start_timestamp || timestamp > end_timestamp)
     {
-        STATUS_LED_RED();
+        //STATUS_LED_RED();
 
 	char aux[0x100];
 	sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
-        print_error(aux);
+        //print_error(aux);
+	print_debug(aux);
 
 	return -1;
     }
