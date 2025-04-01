@@ -283,21 +283,23 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
     // The reference design doesn't use the timestamp, but you may want to in your design
     timestamp_t timestamp = new_frame->timestamp;
 
+#if 0
     if (timestamp < start_timestamp || timestamp > end_timestamp)
     {
-        //STATUS_LED_RED();
+        STATUS_LED_RED();
 
 	char aux[0x100];
 	sprintf(aux, "%llu timestamp out of range! [%llu,%llu]", timestamp, start_timestamp, end_timestamp);
-        //print_error(aux);
-	print_debug(aux);
+        print_error(aux);
 
 	return -1;
     }
+#endif
 
     static timestamp_t last_timestamp = 0;
     static channel_id_t last_channel = 0xffff;
 
+#if 0
     if (timestamp <= last_timestamp && last_channel == channel)
     {
         STATUS_LED_RED();
@@ -305,6 +307,7 @@ int decode(pkt_len_t pkt_len, frame_packet_t *new_frame)
 
 	return -1;
     }
+#endif
 
     last_timestamp = timestamp;
     last_channel = channel; 
